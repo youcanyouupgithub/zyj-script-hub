@@ -1,4 +1,4 @@
-name: Array Schedule
+name: 测试Schedule
 
 on:
   schedule:
