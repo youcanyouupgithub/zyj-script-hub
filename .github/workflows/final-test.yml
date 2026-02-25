@@ -3,7 +3,6 @@ name: Final Schedule Test
 on:
   schedule:
     - cron: '*/5 * * * *'
-  workflow_dispatch:
 
 jobs:
   test:
