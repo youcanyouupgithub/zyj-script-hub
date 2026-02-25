@@ -1,11 +1,12 @@
-name: Final Schedule Test
+name: Array Schedule
 
 on:
   schedule:
     - cron: '*/5 * * * *'
+    - cron: '0 * * * *'
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Schedule works! Time=$(date)"
+      - run: date
