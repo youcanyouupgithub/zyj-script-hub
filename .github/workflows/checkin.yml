@@ -1,0 +1,206 @@
+name: 签到任务v2
+
+on:
+  # 定时任务（使用 cron 表达式，UTC 时间）
+  schedule:
+    # 每天 UTC 0:30 (北京时间 8:30) 执行
+    - cron: '30 0 * * *'
+    # 每天 UTC 9:30 (北京时间 17:30) 执行
+    - cron: '30 9 * * *'
+
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      script_name:
+        description: '选择要运行的脚本'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ikuuu
+          - leaflow
+          - aliyunpan
+          - anyrouter
+          - gemai
+          - agentrouter
+          - 996coder
+          - youdaoyun
+          - baiduwangpan
+          - quark
+          - nodeseek
+          - deepflood
+          - nga
+          - tieba
+          - smzdm
+          - ty_netdisk
+          - sfsu
+          - enshan
+
+jobs:
+  checkin:
+    runs-on: ubuntu-latest
+    # 声明工作流的默认权限
+    permissions:
+      contents: write # 允许写入内容，用于后续自动提交数据
+    # 指定运行环境（可选，但属良好实践）
+    environment: production
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          # 启用 pip 缓存
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip --quiet
+          if [ -f requirements.txt ]; then pip install -r requirements.txt --quiet; fi
+
+      - name: 获取 Playwright 版本
+        id: playwright-version
+        run: |
+          # 从元数据中读取 playwright 版本，用于缓存 key
+          PLAYWRIGHT_VERSION=$(python -c "from importlib.metadata import version; print(version('playwright'))")
+          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+          echo "Playwright version: $PLAYWRIGHT_VERSION"
+
+      - name: 缓存 Playwright 浏览器
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          # Playwright 浏览器的默认缓存路径
+          path: ~/.cache/ms-playwright
+          # 基于操作系统、Playwright 版本创建缓存键
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          # 如果当前键找不到，则使用旧的缓存
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: 安装 Playwright 浏览器
+        # 仅在缓存未命中时执行
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          playwright install chromium --with-deps
+
+      - name: 准备通知模块
+        run: |
+          # 复制 notify.py 到根目录，供签到脚本使用
+          cp .github/workflows/notify.py ./notify.py
+          echo "通知模块准备就绪"
+
+      - name: 连接到 Cloudflare WARP
+        uses: fscarmen/warp-on-actions@v1.3
+        with:
+          mode: client
+
+      - name: 运行签到脚本
+        env:
+          # 时区配置
+          TZ: Asia/Shanghai
+
+          # 全局配置
+          PRIVACY_MODE: ${{ secrets.PRIVACY_MODE }}
+
+          # 通知配置
+          PUSH_KEY: ${{ secrets.PUSH_KEY }}
+          QYWX_KEY: ${{ secrets.QYWX_KEY }}
+          HITOKOTO: 'false'
+
+          # iKuuu 配置
+          IKUUU_EMAIL: ${{ secrets.IKUUU_EMAIL }}
+          IKUUU_PASSWD: ${{ secrets.IKUUU_PASSWD }}
+          IKUUU_DOMAIN: ${{ secrets.IKUUU_DOMAIN }}
+
+          # Leaflow 配置
+          LEAFLOW_COOKIE: ${{ secrets.LEAFLOW_COOKIE }}
+
+          # 阿里云盘配置
+          ALIYUN_REFRESH_TOKEN: ${{ secrets.ALIYUN_REFRESH_TOKEN }}
+          AUTO_UPDATE_TOKEN: ${{ secrets.AUTO_UPDATE_TOKEN }}
+
+          # AnyRouter 配置
+          ANYROUTER_ACCOUNTS: ${{ secrets.ANYROUTER_ACCOUNTS }}
+          ANYROUTER_BASE_URL: ${{ secrets.ANYROUTER_BASE_URL }}
+
+          # GemAI 配置
+          GEMAI_ACCOUNTS: ${{ secrets.GEMAI_ACCOUNTS }}
+          GEMAI_BASE_URL: ${{ secrets.GEMAI_BASE_URL }}
+
+          # 有道云笔记配置
+          YOUDAO_COOKIE: ${{ secrets.YOUDAO_COOKIE }}
+
+          # AgentRouter 配置
+          AGENTROUTER_ACCOUNTS: ${{ secrets.AGENTROUTER_ACCOUNTS }}
+          
+          # 996Coder 配置
+          CODER996_ACCOUNTS: ${{ secrets.CODER996_ACCOUNTS }}
+          
+          BROWSER_HEADLESS: 'true'
+
+          # 百度网盘配置
+          BAIDU_COOKIE: ${{ secrets.BAIDU_COOKIE }}
+
+          # 夸克网盘配置
+          QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
+
+          # 天翼云盘配置
+          TY_USERNAME: ${{ secrets.TY_USERNAME }}
+          TY_PASSWORD: ${{ secrets.TY_PASSWORD }}
+
+          # NodeSeek 配置
+          NODESEEK_COOKIE: ${{ secrets.NODESEEK_COOKIE }}
+          NS_RANDOM: ${{ secrets.NS_RANDOM }}
+
+          # DeepFlood 配置
+          DEEPFLOOD_COOKIE: ${{ secrets.DEEPFLOOD_COOKIE }}
+
+          # NGA论坛 配置
+          NGA_CREDENTIALS: ${{ secrets.NGA_CREDENTIALS }}
+
+          # 百度贴吧 配置
+          TIEBA_COOKIE: ${{ secrets.TIEBA_COOKIE }}
+
+          # 什么值得买 配置
+          SMZDM_COOKIE: ${{ secrets.SMZDM_COOKIE }}
+
+          # 顺丰速运 配置
+          SFSU_COOKIE: ${{ secrets.SFSU_COOKIE }}
+
+          # 恩山论坛 配置
+          ENSHAN_COOKIE: ${{ secrets.ENSHAN_COOKIE }}
+          
+          # 代理控制：指定不走代理的脚本名称，逗号分隔 (例如: leaflow,ikuuu)
+          NO_PROXY_SCRIPTS: ${{ secrets.NO_PROXY_SCRIPTS }}
+        run: |
+          chmod +x .github/workflows/run_checkin.sh
+          .github/workflows/run_checkin.sh "${{ github.event.inputs.script_name }}"
+
+      - name: 自动更新 GitHub Secrets
+        if: always()
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 如果配置了 GH_PAT，则尝试自动更新 Secrets
+          if [ -n "$GH_PAT" ]; then
+            echo "开始自动更新 GitHub Secrets..."
+            python .github/workflows/update_secrets.py
+          else
+            echo "未配置 GH_PAT，跳过自动更新 Secrets"
+          fi
+
+      - name: 保存日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkin-logs-${{ github.run_number }}
+          path: |
+            *.log
+            **/*.log
+          retention-days: 7
